@@ -44,15 +44,18 @@ router = APIRouter(prefix="/testing", tags=["API Testing"])
 # GROQ INIT
 # =================================================
 
-try:
-    from app import groq_client, MODEL_NAME
-except ImportError:
-    from groq import Groq
+from groq import Groq
 from config import GROQ_API_KEY, MODEL_NAME
-    import os
-    from dotenv import load_dotenv
 
-    load_dotenv()
+# Load environment variables
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+try:
+    from app import groq_client
+except ImportError:
     groq_client = Groq(api_key=GROQ_API_KEY)
 
 # =================================================

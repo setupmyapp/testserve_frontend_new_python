@@ -5,12 +5,9 @@ import re
 import logging
 from typing import Dict, Any, List
 from groq import Groq, GroqError
-from config import GROQ_API_KEY
+from config import GROQ_API_KEY, MODEL_NAME
 
 router = APIRouter()
-
-# Configuration
-MODEL_NAME = "llama-3.1-8b-instant"
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)

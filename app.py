@@ -3,6 +3,7 @@ import traceback
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from groq import Groq
 from config import GROQ_API_KEY, MODEL_NAME
 import os
 from dotenv import load_dotenv
