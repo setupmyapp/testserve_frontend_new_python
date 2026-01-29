@@ -4,7 +4,7 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from groq import Groq
-from config import GROQ_API_KEY, MODEL_NAME
+from config import GROQ_API_KEY, MODEL_NAME, PORT
 import os
 from dotenv import load_dotenv
 from typing import Optional
@@ -183,4 +183,4 @@ async def stream_text(request: Request):
     return Response(generate(), media_type="text/event-stream")
 
 if __name__ == "__main__":
-    uvicorn.run("app:app", host="0.0.0.0", port=5000, reload=True)
+    uvicorn.run("app:app", host="0.0.0.0", port=PORT, reload=True)

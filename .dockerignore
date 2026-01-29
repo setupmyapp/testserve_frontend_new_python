@@ -1,0 +1,12 @@
+__pycache__
+.git
+.env
+.env.local
+*.pyc
+venv/
+env/
+.DS_Store
+Testserv extension/
+*.zip
+*.txt
+!requirements.txt

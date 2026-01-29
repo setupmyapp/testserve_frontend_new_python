@@ -8,4 +8,5 @@ Testserv/
 env/
 venv/
 .env
+.env.vps
 .DS_Store

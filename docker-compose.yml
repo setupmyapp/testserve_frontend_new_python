@@ -1,0 +1,13 @@
+# TestServe Python backend (Groq/FastAPI). Port 5001 on VPS.
+# Requires .env on server (create from .env.vps or set GROQ_API_KEY, PORT=5001).
+services:
+  testserve-python:
+    build: .
+    image: testserve-python:latest
+    container_name: testserve-python
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
+    env_file: .env
+    environment:
+      - PORT=5001
