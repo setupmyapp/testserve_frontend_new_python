@@ -1,0 +1,13 @@
+fastapi==0.104.1
+uvicorn==0.24.0
+python-dotenv==1.0.0
+groq==0.4.1
+pydantic==2.5.1
+python-multipart==0.0.6
+httpx==0.25.1
+typing-extensions==4.8.0
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+pymongo==4.5.0
+dnspython==2.4.2
+python-multipart==0.0.6

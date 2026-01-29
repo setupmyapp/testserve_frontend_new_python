@@ -1,0 +1,81 @@
+{
+  "manifest_version": 3,
+  "name": "Testserv",
+  "version": "1.0.0",
+  "description": "Record, replay, and rerun user actions on web applications to automate testing and validate user flows",
+  "icons": {
+    "128": "icon128.png"
+  },
+  "permissions": [
+    "windows",
+    "tabs",
+    "storage",
+    "scripting",
+    "activeTab",
+    "management",
+    "alarms"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content-recorder.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content-player.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "*://localhost/*control.html*",
+        "*://127.0.0.1/*control.html*"
+      ],
+      "js": [
+        "extension-id-injector.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": false
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Record & Playback"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "control.html",
+        "control.js"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ],
+  "externally_connectable": {
+    "matches": [
+      "http://localhost:*/*",
+      "http://127.0.0.1:*/*",
+      "https://localhost:*/*",
+      "https://127.0.0.1:*/*"
+    ]
+  }
+}
