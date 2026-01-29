@@ -7,5 +7,5 @@ Testserv/
 .Python
 env/
 venv/
-.env
+#.env
 .DS_Store
