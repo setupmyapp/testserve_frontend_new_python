@@ -5,6 +5,7 @@ import re
 import logging
 from typing import Dict, Any, List
 from groq import Groq, GroqError
+from config import GROQ_API_KEY
 
 router = APIRouter()
 
@@ -15,10 +16,9 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 def get_groq_client():
-    api_key = os.getenv('GROQ_API_KEY')
-    if not api_key:
-        raise GroqError("GROQ_API_KEY environment variable is not set")
-    return Groq(api_key=api_key)
+    if not GROQ_API_KEY:
+        raise GroqError("GROQ_API_KEY is not configured in config.py")
+    return Groq(api_key=GROQ_API_KEY)
 
 @router.post('/generate_test_scenarios')
 async def generate_test_scenarios(request: Request):

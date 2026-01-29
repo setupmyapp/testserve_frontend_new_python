@@ -1,5 +1,6 @@
 import os
 from groq import Groq
+from config import GROQ_API_KEY, MODEL_NAME
 from dotenv import load_dotenv
 import json
 import re
@@ -9,8 +10,7 @@ load_dotenv()
 
 # Initialize Groq client
 try:
-    groq_client = Groq(api_key=os.getenv('GROQ_API_KEY'))
-    MODEL_NAME = "llama-3.1-8b-instant"
+    groq_client = Groq(api_key=GROQ_API_KEY)
 except Exception as e:
     print(f"Error initializing Groq client: {e}")
     groq_client = None

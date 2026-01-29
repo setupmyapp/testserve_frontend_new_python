@@ -3,7 +3,7 @@ import traceback
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from groq import Groq
+from config import GROQ_API_KEY, MODEL_NAME
 import os
 from dotenv import load_dotenv
 from typing import Optional
@@ -32,8 +32,7 @@ app.add_middleware(
 
 # Initialize Groq client
 try:
-    groq_client = Groq(api_key=os.getenv('GROQ_API_KEY'))
-    MODEL_NAME = "llama-3.1-8b-instant"
+    groq_client = Groq(api_key=GROQ_API_KEY)
 except Exception as e:
     print(f"Error initializing Groq client: {e}")
     groq_client = None

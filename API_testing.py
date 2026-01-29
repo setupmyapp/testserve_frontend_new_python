@@ -48,12 +48,12 @@ try:
     from app import groq_client, MODEL_NAME
 except ImportError:
     from groq import Groq
+from config import GROQ_API_KEY, MODEL_NAME
     import os
     from dotenv import load_dotenv
 
     load_dotenv()
-    groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
-    MODEL_NAME = "llama-3.1-8b-instant"
+    groq_client = Groq(api_key=GROQ_API_KEY)
 
 # =================================================
 # SYSTEM PROMPT
