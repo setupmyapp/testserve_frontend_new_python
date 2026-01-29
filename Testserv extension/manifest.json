@@ -3,7 +3,10 @@
   "name": "Testserv",
   "version": "1.0.0",
   "description": "Record, replay, and rerun user actions on web applications to automate testing and validate user flows",
+  "minimum_chrome_version": "88",
   "icons": {
+    "16": "icon128.png",
+    "48": "icon128.png",
     "128": "icon128.png"
   },
   "permissions": [
@@ -27,6 +30,15 @@
         "<all_urls>"
       ],
       "js": [
+        "page-bridge.js"
+      ],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
         "content-recorder.js"
       ],
       "run_at": "document_idle"
@@ -43,7 +55,9 @@
     {
       "matches": [
         "*://localhost/*control.html*",
-        "*://127.0.0.1/*control.html*"
+        "*://127.0.0.1/*control.html*",
+        "*://72.61.240.130/*control.html*",
+        "*://demo.testserv.ai/*control.html*"
       ],
       "js": [
         "extension-id-injector.js"
@@ -75,7 +89,11 @@
       "http://localhost:*/*",
       "http://127.0.0.1:*/*",
       "https://localhost:*/*",
-      "https://127.0.0.1:*/*"
+      "https://127.0.0.1:*/*",
+      "http://72.61.240.130/*",
+      "https://72.61.240.130/*",
+      "http://demo.testserv.ai/*",
+      "https://demo.testserv.ai/*"
     ]
   }
 }
