@@ -264,6 +264,11 @@ function handleMessage(message, sender, sendResponse) {
         }
         return false;
 
+      case 'openGmailAndGetOtp':
+        handleGmailOtpFlow(sender, sendResponse)
+          .catch(error => sendResponse({ success: false, error: error.message }));
+        return true;
+
       default:
         sendResponse({ success: false, error: 'Unknown action' });
         return false;
@@ -908,4 +913,87 @@ function waitForTabReady(tabId) {
     };
     checkTab();
   });
+}
+
+// Handle OTP Automation Flow
+async function handleGmailOtpFlow(sender, sendResponse) {
+  console.log('🔐 Starting Gmail OTP automation flow...');
+
+  const originalTabId = sender.tab.id;
+  const originalWindowId = sender.tab.windowId;
+  let gmailTabId = null;
+
+  try {
+    // 1. Open Gmail in a new tab (in the same window)
+    const gmailTab = await chrome.tabs.create({
+      url: 'https://mail.google.com/',
+      active: true,
+      windowId: originalWindowId
+    });
+    gmailTabId = gmailTab.id;
+    console.log('📧 Gmail tab opened:', gmailTabId);
+
+    // 2. Wait for Gmail tab to be ready
+    await waitForTabReady(gmailTabId);
+    console.log('📧 Gmail tab ready, waiting for emails to load...');
+
+    // Give it a bit more time for the dynamic list to populate
+    await new Promise(resolve => setTimeout(resolve, 3000));
+
+    // 3. Extract OTP
+    console.log('📧 Requesting OTP extraction...');
+    let otp = null;
+    let attempts = 0;
+    const maxAttempts = 10; // Try for 20-30 seconds total
+
+    while (attempts < maxAttempts && !otp) {
+      try {
+        const response = await chrome.tabs.sendMessage(gmailTabId, {
+          action: 'extractOtp',
+          serviceName: 'Mediacorp'
+        });
+
+        if (response && response.success && response.otp) {
+          otp = response.otp;
+          console.log('✅ OTP found:', otp);
+        } else {
+          console.log('⏳ OTP not found yet, retrying...');
+        }
+      } catch (e) {
+        console.log('⚠️ Error polling for OTP (script might not be ready):', e.message);
+      }
+
+      if (!otp) {
+        attempts++;
+        await new Promise(resolve => setTimeout(resolve, 3000));
+      }
+    }
+
+    if (otp) {
+      // 4. Cleanup and return
+      console.log('✅ Closing Gmail tab and returning OTP');
+      await chrome.tabs.remove(gmailTabId);
+
+      // Ensure we switch back to the original tab
+      await chrome.tabs.update(originalTabId, { active: true });
+
+      sendResponse({ success: true, otp: otp });
+    } else {
+      console.error('❌ Failed to find OTP after max attempts');
+      // Look at the tab one last time before closing? 
+      // Maybe keep it open for debugging if failed?
+      // For now, close it to keep state clean.
+      await chrome.tabs.remove(gmailTabId);
+      await chrome.tabs.update(originalTabId, { active: true });
+      sendResponse({ success: false, error: 'Timeout waiting for OTP email' });
+    }
+
+  } catch (error) {
+    console.error('❌ Error in Gmail OTP flow:', error);
+    if (gmailTabId) {
+      try { await chrome.tabs.remove(gmailTabId); } catch (e) { }
+    }
+    await chrome.tabs.update(originalTabId, { active: true });
+    sendResponse({ success: false, error: error.message });
+  }
 }

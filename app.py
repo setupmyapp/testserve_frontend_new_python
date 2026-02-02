@@ -11,6 +11,7 @@ from typing import Optional
 import uvicorn
 from test_scenarios import router as test_scenarios_router
 from API_testing import router as api_testing_router
+from selenium_generation import router as selenium_gen_router
 import logging
 
 # Load environment variables
@@ -21,6 +22,8 @@ app = FastAPI()
 # Include routers with their respective prefixes
 app.include_router(test_scenarios_router, prefix="/api")
 app.include_router(api_testing_router, prefix="/api")
+app.include_router(selenium_gen_router, prefix="/api")
+
 
 # CORS middleware
 app.add_middleware(
