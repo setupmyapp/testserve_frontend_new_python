@@ -64,6 +64,15 @@
       ],
       "run_at": "document_start",
       "all_frames": false
+    },
+    {
+      "matches": [
+        "https://mail.google.com/*"
+      ],
+      "js": [
+        "otp-automation.js"
+      ],
+      "run_at": "document_idle"
     }
   ],
   "action": {

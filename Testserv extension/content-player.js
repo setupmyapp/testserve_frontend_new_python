@@ -99,24 +99,36 @@ async function executeActions() {
       // Skip mandatory delay and highlighting for video media actions to maintain timing accuracy
       const isVideoAction = ['play', 'pause', 'seek', 'watch'].includes(action.type);
 
+      let elementLabel = '';
+
       if (!isVideoAction) {
         // Add mandatory delay between actions for visibility (requested by user)
-        console.log(`⏳ Waiting 2 seconds before execution...`);
+        console.log(`⏳ Waiting 1 seconds before execution...`);
 
-        // Attempt to highlight the element briefly if it's a selector-based action
+        // Attempt to highlight the element briefly AND get its label
         let elementToHighlight = null;
         if (action.selector && action.selector !== 'window' && action.selector !== 'document') {
           try {
-            // Just a peek, don't wait long - the actual wait happens in executeAction
-            elementToHighlight = await waitForElement(action.selector, action, 2000).catch(() => null);
-            if (elementToHighlight) highlightElement(elementToHighlight);
+            // Just a peek to get info
+            elementToHighlight = await waitForElement(action.selector, action, 1000).catch(() => null);
+            if (elementToHighlight) {
+              highlightElement(elementToHighlight);
+              elementLabel = getElementLabel(elementToHighlight);
+            }
           } catch (e) {
             // Silently ignore highlight errors
           }
         }
 
-        await wait(2000);
+        // Update toast with label if found
+        updateStatusToast(`${i + 1}/${totalActions}`, action.type, false, elementLabel);
+
+        await wait(1000);
         if (elementToHighlight) removeHighlight(elementToHighlight);
+      } else {
+        // for video actions, try to get label without waiting
+        // or just use generic text
+        updateStatusToast(`${i + 1}/${totalActions}`, action.type, false, elementLabel);
       }
 
       // Check for OTP checkpoint
@@ -124,7 +136,13 @@ async function executeActions() {
         console.log('🔐 OTP checkpoint detected - waiting for manual OTP entry...');
         await waitForOtpEntry();
         console.log('✅ OTP verified - continuing playback');
-        continue;
+        coinue;
+      }
+
+      // Check for OTP page (Dynamic detection)
+      if (isOtpPageVisible()) {
+        console.log('🔐 OTP detected dynamically - pausing script for automation...');
+        await waitForOtpEntry();
       }
 
       // Check for PIN popup
@@ -136,6 +154,17 @@ async function executeActions() {
         await executeAction(action);
         console.log(`✅ Action ${i + 1} completed successfully`);
       } catch (error) {
+        // Handle OTP interrupt
+        if (error.message === 'OTP_DETECTED') {
+          console.log('⚡ OTP Interrupt caught! Automatic handling started...');
+          await waitForOtpEntry();
+          // After returning from automation, we assume OTP is done.
+          // We should SKIP the current action because it was likely the "failure" to find a normal element
+          // OR it was the OTP input itself.
+          console.log('⏭️ Skipping current action because OTP was handled automatically.');
+          continue;
+        }
+
         const isVideoClick = action.type === 'click' &&
           (action.selector.includes('video') ||
             action.selector.includes('player') ||
@@ -763,69 +792,249 @@ async function waitForPinEntry() {
 
 // Detect if full-page OTP screen is visible
 function isOtpPageVisible() {
-  // Check for "Enter your 6-digit OTP" text anywhere on the page
-  const bodyText = document.body?.textContent || '';
-  const hasOtpText = bodyText.includes('Enter your 6-digit OTP');
+  console.log('🔍 Checking for OTP page...');
+  const bodyText = (document.body?.textContent || '').toLowerCase();
 
-  if (!hasOtpText) return false;
+  // Check for various OTP indicators
+  const hasOtpHeader = bodyText.includes('otp verification') ||
+    bodyText.includes('one-time password') ||
+    bodyText.includes('enter the code');
 
-  // Also verify there's a Verify button visible (confirms it's an active OTP form)
-  const verifyBtn = document.querySelector('button, input[type="submit"], [role="button"]');
-  let hasVerifyButton = false;
-
-  if (verifyBtn) {
-    const buttons = document.querySelectorAll('button, input[type="submit"], input[type="button"], [role="button"]');
-    for (const btn of buttons) {
-      const btnText = (btn.textContent || btn.value || '').toLowerCase();
-      if (btnText.includes('verify')) {
-        const style = window.getComputedStyle(btn);
-        const isVisible = style.display !== 'none' &&
-          style.visibility !== 'hidden' &&
-          style.opacity !== '0';
-        if (isVisible) {
-          hasVerifyButton = true;
-          break;
-        }
-      }
-    }
+  if (!hasOtpHeader) {
+    // console.log('❌ No OTP header text found');
+    return false;
   }
 
-  if (hasOtpText && hasVerifyButton) {
-    console.log('🔐 OTP page detected (OTP text + Verify button)');
+  // Also verify there's an input field for the code
+  const input = document.querySelector('input[placeholder*="code" i], input[placeholder*="OTP" i], input[name*="code" i], input[name*="otp" i]');
+  const hasInput = !!input;
+
+  if (hasInput) {
+    console.log('🔐 OTP page detected (Header + Input found)');
+    return true;
+  }
+
+  // Fallback: Check for verify button if input logic misses
+  const verifyBtn = document.querySelector('button, input[type="submit"], [role="button"]');
+  if (verifyBtn && (verifyBtn.innerText || verifyBtn.value || '').toLowerCase().match(/verify|next|submit/)) {
+    console.log('🔐 OTP page detected (Header + Verify Button found)');
     return true;
   }
 
   return false;
 }
 
-// Wait for OTP page to disappear (manual entry by user)
+// Wait for OTP page to disappear (manual or auto)
 async function waitForOtpEntry() {
-  console.log('🔐 OTP verification required - waiting for manual entry...');
-  console.log('👉 Please enter the OTP on the page and click Verify');
+  console.log('🔐 OTP verification required - triggering automation...');
+  updateStatusToast('🤖', 'Auto-verifying OTP...', false);
 
-  // Update status toast to inform user
-  updateStatusToast('⏸️', 'Waiting for manual OTP entry…', false);
+  // Attempt partial automation
+  try {
+    console.log('📨 Requesting Gmail OTP from background...');
 
-  // Poll until OTP page disappears (verification complete)
-  while (isOtpPageVisible()) {
-    await wait(200); // Check every 200ms
+    // Request background to handle Gmail flow (opens tab, gets OTP, closes tab)
+    // We set a long timeout because this involves network and UI steps
+    const response = await sendMessageWithTimeout({ action: 'openGmailAndGetOtp' }, 60000);
+
+    if (response && response.success && response.otp) {
+      console.log('✅ Received OTP:', response.otp);
+      updateStatusToast('⚡', 'Entering OTP...', false);
+
+      await enterOtp(response.otp);
+
+      // Wait for page to transition/verify
+      await wait(2000);
+
+      // Check if we are still on OTP page
+      if (!isOtpPageVisible()) {
+        console.log('✅ OTP verified successfully (auto)!');
+        updateStatusToast('✅', 'OTP Verified', false);
+        await wait(1000);
+        return;
+      } else {
+        console.warn('⚠️ OTP entered but page did not transition. Verification might have failed.');
+      }
+    } else {
+      console.warn('⚠️ OTP Automation failed or timed out:', response ? response.error : 'No response');
+    }
+  } catch (error) {
+    console.error('❌ Error during OTP automation:', error);
   }
 
-  console.log('✅ OTP verified - resuming playback');
+  // Fallback to manual entry if automation didn't fully resolve it
+  if (isOtpPageVisible()) {
+    console.log('👉 Automation finished/failed - waiting for manual entry...');
+    updateStatusToast('⏸️', 'Manual OTP Required', false);
+
+    // Poll until OTP page disappears
+    while (isOtpPageVisible()) {
+      await wait(500);
+    }
+    console.log('✅ OTP manually verified - resuming playback');
+  } else {
+    console.log('✅ OTP verified - resuming playback');
+  }
 
   // Wait a bit for the site to stabilize after OTP verification
   await wait(1000);
 }
 
+// Helper to enter OTP into the page
+async function enterOtp(otp) {
+  console.log('⌨️ Attempting to enter OTP:', otp);
+
+  // Strategy 1: Find single input field (most common)
+  // Look for common attributes based on screenshot "Enter the code*"
+  const singleInput = document.querySelector('input[placeholder*="code" i], input[placeholder*="OTP" i], input[name="code"], input[name="otp"], input[autocomplete="one-time-code"]');
+
+  if (singleInput) {
+    console.log('🎯 Found single input field:', singleInput);
+    singleInput.focus();
+    singleInput.value = otp;
+    singleInput.dispatchEvent(new Event('input', { bubbles: true }));
+    singleInput.dispatchEvent(new Event('change', { bubbles: true }));
+
+    await wait(500);
+
+    // Find Next/Verify button
+    // Screenshot shows "Next" button
+    const buttons = Array.from(document.querySelectorAll('button, div[role="button"], input[type="submit"]'));
+    const targetBtn = buttons.find(b => {
+      const text = (b.textContent || b.value || '').trim().toLowerCase();
+      return text === 'next' || text === 'verify' || text === 'submit' || text === 'continue';
+    });
+
+    if (targetBtn) {
+      console.log('🖱️ Clicking verification button:', targetBtn);
+      targetBtn.click();
+    } else {
+      console.log('⚠️ Could not find specific Verify/Next button, trying Enter key...');
+      singleInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    }
+    return;
+  }
+
+  // Strategy 2: Split input fields (Digit boxes)
+  const inputs = Array.from(document.querySelectorAll('input')).filter(i => {
+    // Basic heuristic for digit inputs: short max length, often grouped
+    return i.offsetParent !== null && (i.maxLength === 1 || i.style.width === '40px' || i.className.includes('digit'));
+  });
+
+  if (inputs.length >= 4 && inputs.length <= 8) {
+    console.log(`🎯 Found ${inputs.length} digit fields`);
+    const chars = otp.split('');
+    chars.forEach((char, i) => {
+      if (inputs[i]) {
+        inputs[i].focus();
+        inputs[i].value = char;
+        inputs[i].dispatchEvent(new Event('input', { bubbles: true }));
+        inputs[i].dispatchEvent(new Event('keyup', { bubbles: true }));
+      }
+    });
+    // Triggers are often auto-on-fill for these, but we wait and see
+  } else {
+    console.warn('⚠️ Could not identify OTP input field(s)');
+  }
+}
+
+function sendMessageWithTimeout(msg, timeout) {
+  return new Promise((resolve, reject) => {
+    let responded = false;
+
+    chrome.runtime.sendMessage(msg, (response) => {
+      if (responded) return;
+      responded = true;
+      if (chrome.runtime.lastError) {
+        // Background might not have a handler yet if not reloaded, but we assume it has
+        resolve({ success: false, error: chrome.runtime.lastError.message });
+      } else {
+        resolve(response);
+      }
+    });
+
+    setTimeout(() => {
+      if (!responded) {
+        responded = true;
+        resolve({ success: false, error: 'Timeout waiting for background request' });
+      }
+    }, timeout);
+  });
+}
+
 // Execute watch duration
 async function executeWatch(duration) {
   console.log(`⏱️ Watching for ${duration.toFixed(2)} seconds...`);
+
+  // Ensure video is playing
+  const video = document.querySelector('video');
+  if (video) {
+    if (video.paused) {
+      console.log('▶️ Resuming video for watch segment...');
+      try {
+        await video.play();
+      } catch (e) {
+        console.warn('⚠️ Could not auto-play video:', e);
+      }
+    }
+  } else {
+    console.warn('⚠️ No video element found for watch command');
+  }
+
+  // Visual feedback
+  updateStatusToast('▶️', `Watching: ${duration.toFixed(1)}s`, false);
+
+  // Wait for the duration
   await wait(duration * 1000);
+
   console.log('✅ Watch duration completed');
 }
 
+// Helper to get a human-readable label for an element
+function getElementLabel(element) {
+  if (!element) return '';
+
+  // 1. Text Content (trimmed and truncated)
+  const text = (element.innerText || element.textContent || '').trim();
+  if (text.length > 0) {
+    // If text is too long (e.g., paragraph), truncate it
+    return text.length > 25 ? `"${text.substring(0, 25)}..."` : `"${text}"`;
+  }
+
+  // 2. Aria Label
+  const ariaLabel = element.getAttribute('aria-label') || element.getAttribute('aria-labelledby');
+  if (ariaLabel) return `"${ariaLabel}"`;
+
+  // 3. Form Attributes
+  const placeholder = element.getAttribute('placeholder');
+  if (placeholder) return `"${placeholder}"`;
+
+  const value = element.value;
+  if (value && typeof value === 'string' && value.length > 0 && value.length < 20) return `"${value}"`;
+
+  const name = element.getAttribute('name');
+  if (name) return `"${name}"`;
+
+  // 4. Media Attributes
+  const alt = element.getAttribute('alt');
+  if (alt) return `"${alt}"`;
+
+  const title = element.getAttribute('title');
+  if (title) return `"${title}"`;
+
+  // 5. Fallback: Tag + ID/Class
+  let label = element.tagName.toLowerCase();
+  if (element.id) label += `#${element.id}`;
+  else if (element.className && typeof element.className === 'string') {
+    const cleanClass = element.className.split(' ')[0];
+    if (cleanClass) label += `.${cleanClass}`;
+  }
+
+  return label;
+}
+
 // Visual Feedback Helpers
-function updateStatusToast(progress, status, isError = false) {
+function updateStatusToast(progress, status, isError = false, label = '') {
   let toast = document.getElementById('playback-status-toast');
 
   if (!toast) {
@@ -849,10 +1058,50 @@ function updateStatusToast(progress, status, isError = false) {
       display: flex;
       align-items: center;
       gap: 12px;
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
       transform: translateY(0);
+      cursor: move;
+      user-select: none;
     `;
+
+    // Drag functionality
+    let isDragging = false;
+    let offsetX, offsetY;
+
+    toast.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      offsetX = e.clientX - toast.getBoundingClientRect().left;
+      offsetY = e.clientY - toast.getBoundingClientRect().top;
+      toast.style.transition = 'none';
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      const x = e.clientX - offsetX;
+      const y = e.clientY - offsetY;
+      toast.style.left = `${x}px`;
+      toast.style.top = `${y}px`;
+      toast.style.right = 'auto';
+      // Persist position for future updates
+      toast.dataset.posX = x;
+      toast.dataset.posY = y;
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (isDragging) {
+        isDragging = false;
+        toast.style.transition = 'opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+      }
+    });
+
     document.body.appendChild(toast);
+  } else {
+    // If it already exists and has been moved, restore its position
+    if (toast.dataset.posX && toast.dataset.posY) {
+      toast.style.left = `${toast.dataset.posX}px`;
+      toast.style.top = `${toast.dataset.posY}px`;
+      toast.style.right = 'auto';
+    }
   }
 
   if (progress === null) {
@@ -865,11 +1114,16 @@ function updateStatusToast(progress, status, isError = false) {
   const icon = isError ? '❌' : '🎭';
   const color = isError ? '#ff4b2b' : '#3d8bff';
 
+  let statusText = status.charAt(0).toUpperCase() + status.slice(1);
+  if (label) {
+    statusText = `${statusText}: <span style="font-weight:700; color: #fff;">${label}</span>`;
+  }
+
   toast.innerHTML = `
     <div style="background: ${color}; width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 12px ${color};"></div>
     <div style="display: flex; flex-direction: column;">
       <span style="font-size: 10px; opacity: 0.6; text-transform: uppercase; letter-spacing: 0.5px;">Playback ${progress}</span>
-      <span>${status.charAt(0).toUpperCase() + status.slice(1)}</span>
+      <span style="display: flex; gap: 4px; color: rgba(255,255,255,0.9);">${statusText}</span>
     </div>
   `;
 }
