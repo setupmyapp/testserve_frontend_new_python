@@ -1,0 +1,6 @@
+# CODEOWNERS file
+# This file defines code owners for the repository
+# Format: <file_pattern> <owner>
+
+# Default owner for all files
+* @hemanth19088
