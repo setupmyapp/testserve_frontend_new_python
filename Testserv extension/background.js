@@ -864,9 +864,11 @@ async function handleRecordedAction(uuid, action) {
 
   console.log('📝 New actions count after adding:', recording.script.actions.length);
 
-  // Save to storage
-  await saveScript(uuid, recording.script);
-  console.log('💾 Script saved to storage');
+  // Save to storage ASYNCHRONOUSLY to prevent blocking the response
+  // This prevents "Extension did not respond" errors on slower systems (Windows)
+  saveScript(uuid, recording.script)
+    .then(() => console.log('💾 Script saved to storage (async)'))
+    .catch(err => console.error('❌ Failed to save script to storage:', err));
 }
 
 // Save script to storage
